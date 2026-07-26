@@ -1,0 +1,15 @@
+# Local editor settings
+.claude/
+
+# Raw source screenshots (large; not needed to run the app)
+Zealot/Tree Descriptions/
+
+# Regenerable build intermediate (embedded into the HTML already)
+build/data.json
+build/ic/
+build/*.html
+
+# Scrape debris
+p.html
+page.html
+*.tmp
