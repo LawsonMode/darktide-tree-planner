@@ -76,6 +76,21 @@
   .ver b{color:var(--gold);font-weight:600}
   .toast{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:#241a1a;border:1px solid #cc5a5c;color:#f0c9c9;padding:8px 14px;border-radius:7px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:30}
   .toast.show{opacity:1}
+  .modal{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(6,7,9,.72)}
+  .modal.show{display:flex}
+  .box{position:relative;width:min(520px,92vw);background:linear-gradient(180deg,#181a1e,#111316);border:1px solid var(--hair);
+    border-radius:12px;padding:22px 22px 20px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .box h3{font-family:Georgia,serif;font-size:20px;margin:0 0 6px}
+  .box .sub{margin:0 0 16px;font-size:13px;line-height:1.5;color:var(--muted)}
+  .box label{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  .box textarea{width:100%;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--text);
+    background:#0e1013;border:1px solid var(--hair);border-radius:7px;padding:9px 11px;word-break:break-all}
+  .box textarea:focus{outline:none;border-color:var(--gold)}
+  .box hr{border:0;border-top:1px solid var(--hair);margin:18px 0}
+  .box .row{display:flex;align-items:center;gap:12px;margin-top:9px}
+  .box .msg{font-size:12.5px;color:var(--aura)} .box .msg.err{color:#cc5a5c}
+  .box .x{position:absolute;top:10px;right:12px;background:transparent;border:0;color:var(--muted);font-size:24px;line-height:1;cursor:pointer}
+  .box .x:hover{color:var(--text)}
   @media (max-width:860px){aside{position:absolute;right:0;top:0;bottom:0;flex-basis:290px;box-shadow:-8px 0 30px rgba(0,0,0,.6);z-index:15}}
 </style>
 
@@ -86,6 +101,7 @@
     <label class="ctl">Build name<input class="name" id="buildName" value="My Build" maxlength="40"></label>
     <button class="act" id="resetBtn" title="Clear all allocated nodes">Reset</button>
     <button class="act primary" id="exportBtn" title="Download this build as a PNG">&#10515; Export PNG</button>
+    <button class="act" id="codeBtn" title="Share or import a build code">&#8646; Code</button>
     <div class="badge"><span class="n" id="ptsN">0 / 30</span><span class="l" id="ptsL">Points spent</span></div>
     <div class="zoombar"><button id="zin">+</button><button id="zout">&minus;</button><button id="zfit" style="width:auto;padding:6px 9px;font-size:12px">Fit</button></div>
   </div>
@@ -100,9 +116,24 @@
   </aside>
 </main>
 
+<div class="modal" id="modal">
+  <div class="box">
+    <h3>Build Code</h3>
+    <p class="sub">Share your build or load one someone sent you. The code holds the class, sub-tree, and every allocated node.</p>
+    <label>Your current build</label>
+    <textarea id="codeOut" readonly rows="2" spellcheck="false"></textarea>
+    <div class="row"><button class="act primary" id="copyCode">Copy code</button><span id="copyMsg" class="msg"></span></div>
+    <hr>
+    <label>Load a code</label>
+    <textarea id="codeIn" rows="2" spellcheck="false" placeholder="Paste a code beginning with DT1. …"></textarea>
+    <div class="row"><button class="act primary" id="loadCode">Load build</button><span id="loadMsg" class="msg"></span></div>
+    <button class="x" id="closeModal" title="Close">&times;</button>
+  </div>
+</div>
+
 <script>
 /* ===== version / provenance (canonical version spot for this applet) ===== */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 const GAME_PATCH  = 'Darktide Hotfix 1.12.3 (2026-07-06)';
 const DATA_SOURCE = 'Games Lantern';
 const DATA_SCRAPED= '2026-07-26';
@@ -300,6 +331,63 @@ function exportPNG(){
   img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(str);
 }
 document.getElementById('exportBtn').onclick=exportPNG;
+
+/* ---------------- build code (share / import) ---------------- */
+// Format:  DT1.<classKey>.<base64url bitmask over that tree's node order>
+function b64urlFromBytes(bytes){let s='';bytes.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function bytesFromB64url(str){str=str.replace(/-/g,'+').replace(/_/g,'/');const bin=atob(str);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
+function encodeBuild(){
+  const nodes=CUR.nodes, bytes=new Uint8Array(Math.ceil(nodes.length/8));
+  nodes.forEach((n,i)=>{ if(active.has(n.s)) bytes[i>>3]|=(1<<(i&7)); });
+  return 'DT1.'+CUR.key+'.'+b64urlFromBytes(bytes);
+}
+// switch to a class or nested sub-tree by key, leaving active at just the root
+function openTree(classKey){
+  const c=DATA.classes.find(x=>x.key===classKey); if(!c) return false;
+  selectClass(c.parent||c.key);
+  if(c.parent){ buildTree(c.key);
+    const sb=document.getElementById('subbar');
+    [...sb.querySelectorAll('button')].forEach(b=>b.classList.toggle('on', b.textContent===(c.subLabel||'')));
+  }
+  return true;
+}
+function applyBuildCode(code){
+  const parts=(code||'').trim().split('.');
+  if(parts.length!==3 || parts[0]!=='DT1') throw new Error('Not a valid build code.');
+  const key=parts[1];
+  if(!DATA.classes.some(c=>c.key===key)) throw new Error('Unknown class in code: '+key);
+  openTree(key);
+  const bytes=bytesFromB64url(parts[2]);
+  const want=new Set([ROOT]);
+  CUR.nodes.forEach((n,i)=>{ if(bytes[i>>3] & (1<<(i&7))) want.add(n.s); });
+  // keep only nodes reachable from root through the selected set (safety against bad codes)
+  const legal=new Set([ROOT]), q=[ROOT];
+  while(q.length){const cur=q.pop();for(const nb of ADJ[cur]){ if(want.has(nb)&&!legal.has(nb)){legal.add(nb);q.push(nb);} }}
+  active=legal; redraw();
+  return {cls:CUR.name, points:points(), dropped:[...want].length-legal.size};
+}
+const modal=document.getElementById('modal');
+document.getElementById('codeBtn').onclick=()=>{
+  document.getElementById('codeOut').value=encodeBuild();
+  document.getElementById('copyMsg').textContent=''; document.getElementById('loadMsg').textContent='';
+  document.getElementById('codeIn').value='';
+  modal.classList.add('show');
+};
+document.getElementById('closeModal').onclick=()=>modal.classList.remove('show');
+modal.addEventListener('click',e=>{ if(e.target===modal) modal.classList.remove('show'); });
+document.getElementById('copyCode').onclick=()=>{
+  const ta=document.getElementById('codeOut'); ta.select(); ta.setSelectionRange(0,99999);
+  const done=m=>{const el=document.getElementById('copyMsg');el.className='msg';el.textContent=m;};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(ta.value).then(()=>done('Copied ✓'),()=>{try{document.execCommand('copy');done('Copied ✓');}catch(_){done('Press Ctrl+C');}});}
+  else{try{document.execCommand('copy');done('Copied ✓');}catch(_){done('Press Ctrl+C');}}
+};
+document.getElementById('loadCode').onclick=()=>{
+  const el=document.getElementById('loadMsg');
+  try{ const r=applyBuildCode(document.getElementById('codeIn').value);
+    el.className='msg'; el.textContent=`Loaded ${r.cls} — ${r.points} pts`+(r.dropped?` (${r.dropped} disconnected node(s) skipped)`:'');
+    setTimeout(()=>modal.classList.remove('show'),900);
+  }catch(err){ el.className='msg err'; el.textContent=err.message; }
+};
 
 /* pan + zoom */
 const stage=document.getElementById('stage'); let scale=1,tx=0,ty=0;

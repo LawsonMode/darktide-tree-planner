@@ -6,7 +6,7 @@ An interactive, in-browser skill-tree **build editor** for *Warhammer 40,000: Da
 
 Or open any HTML file locally in a browser (no install, no server, works offline): [`index.html`](index.html) (landing), a per-class page like [`zealot.html`](zealot.html), or the all-in-one [`darktide-skill-trees.html`](darktide-skill-trees.html).
 
-> **Applet version:** v1.0.0
+> **Applet version:** v1.1.0
 > **Tree data based on:** Darktide **Hotfix 1.12.3** (2026-07-06)
 
 ---
@@ -19,6 +19,7 @@ Or open any HTML file locally in a browser (no install, no server, works offline
 - **Faithful rules** — one Keystone / Ability / Blitz / Aura per group (handles Arbites' two keystone groups), and you can't remove a node other allocated nodes route through.
 - **Hover** any node for its full effect text; **switch classes** from the top bar.
 - **Export PNG** — download your build as an image, stamped with class, points, keystone/ability/blitz/aura, and version.
+- **Build codes** — share a build as a short code (e.g. `DT1.zealot.PQIA…`) and paste it back to restore it exactly, including which class and sub-tree.
 
 ## Rebuilding the data
 
