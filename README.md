@@ -2,7 +2,9 @@
 
 An interactive, in-browser skill-tree **build editor** for *Warhammer 40,000: Darktide* — all seven playable classes plus the Hive Scum Stimm sub-tree, in a single self-contained page.
 
-**▶ Live app:** open [`darktide-skill-trees.html`](darktide-skill-trees.html) in any browser (no install, no server, works offline).
+**▶ Play it live:** **https://lawsonmode.github.io/darktide-tree-planner/** — pick a class, build, export.
+
+Or open any HTML file locally in a browser (no install, no server, works offline): [`index.html`](index.html) (landing), a per-class page like [`zealot.html`](zealot.html), or the all-in-one [`darktide-skill-trees.html`](darktide-skill-trees.html).
 
 > **Applet version:** v1.0.0
 > **Tree data based on:** Darktide **Hotfix 1.12.3** (2026-07-06)
