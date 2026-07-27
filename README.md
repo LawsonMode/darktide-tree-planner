@@ -6,7 +6,7 @@ An interactive, in-browser skill-tree **build editor** for *Warhammer 40,000: Da
 
 Or open any HTML file locally in a browser (no install, no server, works offline): [`index.html`](index.html) (landing), a per-class page like [`zealot.html`](zealot.html), or the all-in-one [`darktide-skill-trees.html`](darktide-skill-trees.html).
 
-> **Applet version:** v1.1.0
+> **Applet version:** v1.2.0
 > **Tree data based on:** Darktide **Hotfix 1.12.3** (2026-07-06)
 
 ---
@@ -20,6 +20,8 @@ Or open any HTML file locally in a browser (no install, no server, works offline
 - **Hover** any node for its full effect text; **switch classes** from the top bar.
 - **Export PNG** — download your build as an image, stamped with class, points, keystone/ability/blitz/aura, and version.
 - **Build codes** — share a build as a short code (e.g. `DT1.zealot.PQIA…`) and paste it back to restore it exactly, including which class and sub-tree.
+- **Preset builds** — a Preset dropdown (on classes that have one) loads a curated, research-backed build in one click: *The Unbroken Choir* (Zealot Chorus support) and *Storm Anchor* (Psyker max-uptime Smite).
+- **Gear guide** — per-class panel with the current-meta top-2 melee and ranged weapons plus curio stat priorities.
 
 ## Rebuilding the data
 

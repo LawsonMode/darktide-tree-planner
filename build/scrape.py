@@ -117,7 +117,8 @@ stimm_svg = next((s for s in re.findall(r'<svg\b.*?</svg>', hs_html, re.S)
                   if 'broker_stimm' in s and s.count('<line')>10), '')
 n,e,ic = extract_svg(stimm_svg, 'broker', 'root-brokerstimm')
 STIMM={'key':'hivescum-stimm','name':'Hive Scum — Stimm','ig':'broker',
-       'nodes':n,'edges':e,'icon_urls':ic,'budget':None}
+       'nodes':n,'edges':e,'icon_urls':ic,'budget':None,
+       'parent':'hivescum','subLabel':'Stimm Tree'}
 CLASSES.append(STIMM)
 print(f'{STIMM["name"]}: {len(n)} nodes, {len(e)} edges, {len(ic)} icons')
 
@@ -173,6 +174,7 @@ for cl in CLASSES:
     xs=[n['x'] for n in cl['nodes']]; ys=[n['y'] for n in cl['nodes']]
     vb=[min(xs)-PAD, min(ys)-PAD, (max(xs)-min(xs))+2*PAD, (max(ys)-min(ys))+2*PAD]
     out['classes'].append({'key':cl['key'],'name':cl['name'],'ig':cl['ig'],'viewbox':vb,'budget':cl.get('budget',30),
+        'parent':cl.get('parent'),'subLabel':cl.get('subLabel'),
         'nodes':[{k:n[k] for k in ('s','x','y','shape','cat','n','t','d')} for n in cl['nodes']],
         'edges':cl['edges']})
 with open('data.json','w',encoding='utf-8') as f:
