@@ -148,7 +148,7 @@ TEMPLATE = r"""<title>Darktide Skill Trees — All Classes</title>
 
 <script>
 /* ===== version / provenance (canonical version spot for this applet) ===== */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 
 /* ===== named preset builds (loadable via the Preset dropdown) ===== */
 const PRESETS = {
@@ -157,6 +157,7 @@ const PRESETS = {
   ],
   psyker: [
     { name: 'Storm Anchor — Smite Warden (max Smite uptime)', code: 'DT1.psyker.G2SBmQESwIIg7WU' },
+    { name: 'Storm Bastion — Smite Warden (more survivability)', code: 'DT1.psyker.G2SBkQESwMIg7WU' },
   ],
 };
 const GAME_PATCH  = 'Darktide Hotfix 1.12.3 (2026-07-06)';
@@ -529,7 +530,7 @@ INDEX=f'''<title>Darktide Tree Planner</title>
   <a class="allbtn" href="darktide-skill-trees.html">Open all classes in one page →</a>
   <div class="grid">
   {cards}</div>
-  <footer>Skill Tree Planner <b>v{'1.2.0'}</b> · Tree data based on <b>Darktide Hotfix 1.12.3 (2026-07-06)</b>.
+  <footer>Skill Tree Planner <b>v{'1.2.1'}</b> · Tree data based on <b>Darktide Hotfix 1.12.3 (2026-07-06)</b>.
   Data via <a href="https://darktide.gameslantern.com">Games Lantern</a>, scraped 2026-07-26.<br>
   Unofficial fan project — not affiliated with Games Workshop or Fatshark. Warhammer 40,000 &amp; Darktide © their respective owners.</footer>
 </div>
