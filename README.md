@@ -6,8 +6,8 @@ An interactive, in-browser skill-tree **build editor** for *Warhammer 40,000: Da
 
 Or open any HTML file locally in a browser (no install, no server, works offline): [`index.html`](index.html) (landing), a per-class page like [`zealot.html`](zealot.html), or the all-in-one [`darktide-skill-trees.html`](darktide-skill-trees.html).
 
-> **Applet version:** v1.2.0
-> **Tree data based on:** Darktide **Hotfix 1.12.3** (2026-07-06)
+> **Applet version:** v1.2.1
+> **Tree data:** Games Lantern snapshot scraped **2026-09-29**. Community data may lag a game patch.
 
 ---
 
@@ -19,21 +19,24 @@ Or open any HTML file locally in a browser (no install, no server, works offline
 - **Faithful rules** — one Keystone / Ability / Blitz / Aura per group (handles Arbites' two keystone groups), and you can't remove a node other allocated nodes route through.
 - **Hover** any node for its full effect text; **switch classes** from the top bar.
 - **Export PNG** — download your build as an image, stamped with class, points, keystone/ability/blitz/aura, and version.
-- **Build codes** — share a build as a short code (e.g. `DT1.zealot.PQIA…`) and paste it back to restore it exactly, including which class and sub-tree.
-- **Preset builds** — a Preset dropdown (on classes that have one) loads a curated, research-backed build in one click: *The Unbroken Choir* (Zealot Chorus support) and *Storm Anchor* (Psyker max-uptime Smite).
+- **Build codes** — share a build as a short code (`DT2.<class>.<tree fingerprint>.<build>`) and paste it back to restore it, including which class and sub-tree. A tree fingerprint prevents codes from being applied to a different node order.
 - **Gear guide** — per-class panel with the current-meta top-2 melee and ranged weapons plus curio stat priorities.
 
 ## Rebuilding the data
+
+The September 29 refresh changes talent layouts. Legacy `DT1` codes must be recreated, and the old Zealot/Psyker presets have been retired because they reference removed talents.
 
 The tree data (positions, connections, icons, descriptions) is scraped from [Games Lantern](https://darktide.gameslantern.com) and baked into the HTML. To regenerate after a game patch:
 
 ```bash
 cd build
 python3 scrape.py   # scrapes all classes -> data.json (+ downloads/encodes icons)
-python3 gen.py      # injects data.json into the HTML template -> darktide-skill-trees.html
+python3 gen.py      # regenerates the combined page, per-class pages, and index.html
 ```
 
-Requires Python 3. `scrape.py` fetches each class's tree (server-rendered SVG on Games Lantern build pages) and every node's effect text from its `/abilities/<slug>` page.
+Requires Python 3. `scrape.py` fetches each class's current tree (server-rendered SVG on Games Lantern class pages) and talent effect text from its `/abilities/<slug>` page. Class pages track the live tree; saved build pages can retain an older patch's layout. The scraper stops on missing trees, talent descriptions, or icons instead of publishing incomplete data.
+
+The scrape date is recorded in `build/data.json` and included in the generated pages. Both scripts resolve paths relative to their own location, and generated HTML is written to the repository root.
 
 ## Attribution & disclaimer
 

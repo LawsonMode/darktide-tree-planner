@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-import re, json, base64, urllib.request, concurrent.futures, os, html as htmllib
+import re, json, base64, urllib.request, concurrent.futures, html as htmllib
+from datetime import datetime, timezone
+from pathlib import Path
+
+BUILD = Path(__file__).resolve().parent
 
 UA = {'User-Agent':'Mozilla/5.0'}
 BASE = 'https://darktide.gameslantern.com'
 CLASSES = [
- {'key':'veteran','name':'Veteran','ig':'veteran','build':'9a4f4fdd-f4ef-4ea1-b7d6-71bf513e90d1/havoc-bolter-vet-fuplaayz'},
- {'key':'zealot','name':'Zealot','ig':'zealot','build':'9a4fa304-0b88-4cf8-827a-d0435327a8c3/zealot-infodump-no-stealth-auric'},
- {'key':'ogryn','name':'Ogryn','ig':'ogryn','build':'a07df7b0-bb70-49fc-972e-237b68db7582/the-immortal-shieldgryn-h-40'},
- {'key':'psyker','name':'Psyker','ig':'psyker','build':'9ba81400-4c60-4362-9756-f93428dfc021/azyr-psyker'},
- {'key':'arbites','name':'Arbites','ig':'adamant','build':'9f35c673-7c83-4bd1-9d77-a25d7b19984d/execution-order-nuncio-aquila-arbites'},
- {'key':'skitarii','name':'Skitarii','ig':'cryptic','build':'a21148b3-6004-4042-a145-af61ce6b67ee/skitarii-sniper'},
- {'key':'hivescum','name':'Hive Scum','ig':'broker','build':'a0aaf6c0-6b02-4472-b679-1a93866ad0a2/the-chemist-v4'},
+ {'key':'veteran','name':'Veteran','ig':'veteran','page':'veteran-sharpshooter'},
+ {'key':'zealot','name':'Zealot','ig':'zealot','page':'zealot-preacher'},
+ {'key':'ogryn','name':'Ogryn','ig':'ogryn','page':'ogryn-skullbreaker'},
+ {'key':'psyker','name':'Psyker','ig':'psyker','page':'psyker-psykinetic'},
+ {'key':'arbites','name':'Arbites','ig':'adamant','page':'arbites'},
+ {'key':'skitarii','name':'Skitarii','ig':'cryptic','page':'skitarii'},
+ {'key':'hivescum','name':'Hive Scum','ig':'broker','page':'hive-scum'},
 ]
 
 def get(url, binary=False, tries=3):
@@ -20,7 +24,7 @@ def get(url, binary=False, tries=3):
             with urllib.request.urlopen(req, timeout=30) as r:
                 return r.read() if binary else r.read().decode('utf-8','replace')
         except Exception as e:
-            if i==tries-1: return None
+            if i==tries-1: raise RuntimeError(f'Failed to fetch {url}') from e
 
 IMG_RE = re.compile(r'<image\b[^>]*?(?:xlink:href|href)="([^"]+)"[^>]*?/?>', re.S)
 def img_attrs(tag):
@@ -100,9 +104,11 @@ def extract_svg(svg, ig, rootkey):
     return nodes, sorted(edges), icon_urls
 
 def parse_class(cl):
-    html = get(f'{BASE}/builds/{cl["build"]}')
+    html = get(f'{BASE}/classes/{cl["page"]}')
     svg = pick_main_svg(html)
     cl['nodes'],cl['edges'],cl['icon_urls'] = extract_svg(svg, cl['ig'], f'root-{cl["ig"]}')
+    if not cl['nodes'] or not cl['edges']:
+        raise ValueError(f'Empty tree for {cl["name"]}')
     cl['budget']=30
     print(f'{cl["name"]}: {len(cl["nodes"])} nodes, {len(cl["edges"])} edges, {len(cl["icon_urls"])} icons')
     return cl
@@ -112,10 +118,12 @@ for cl in CLASSES:
     parse_class(cl)
 
 # ---- phase 1b: Hive Scum Stimm sub-tree (a second SVG on the Hive Scum page) ----
-hs_html = get(f'{BASE}/builds/{CLASSES[-1]["build"]}')   # Hive Scum is last in CLASSES
+hs_html = get(f'{BASE}/classes/{CLASSES[-1]["page"]}')   # Hive Scum is last in CLASSES
 stimm_svg = next((s for s in re.findall(r'<svg\b.*?</svg>', hs_html, re.S)
                   if 'broker_stimm' in s and s.count('<line')>10), '')
 n,e,ic = extract_svg(stimm_svg, 'broker', 'root-brokerstimm')
+if not n or not e:
+    raise ValueError('Empty Hive Scum Stimm tree')
 STIMM={'key':'hivescum-stimm','name':'Hive Scum — Stimm','ig':'broker',
        'nodes':n,'edges':e,'icon_urls':ic,'budget':None,
        'parent':'hivescum','subLabel':'Stimm Tree'}
@@ -143,6 +151,8 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=24) as ex:
         DESC[slug]=info
 missing=[s for s in slugs if not DESC[s]['d']]
 print('descriptions fetched; missing text:', len(missing), missing[:10])
+if missing:
+    raise ValueError(f'Missing talent descriptions: {missing}')
 
 # attach desc to nodes
 for cl in CLASSES:
@@ -166,10 +176,12 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=24) as ex:
     for key,uri in ex.map(dl, allicons.items()):
         if uri: ICONS[key]=uri
 print('icons downloaded:', len(ICONS), 'of', len(allicons))
+if len(ICONS) != len(allicons):
+    raise ValueError('Missing talent icons')
 
 # ---- phase 4: assemble data.json ----
 PAD=70
-out={'classes':[], 'icons':ICONS}
+out={'scraped_at': datetime.now(timezone.utc).date().isoformat(), 'classes':[], 'icons':ICONS}
 for cl in CLASSES:
     xs=[n['x'] for n in cl['nodes']]; ys=[n['y'] for n in cl['nodes']]
     vb=[min(xs)-PAD, min(ys)-PAD, (max(xs)-min(xs))+2*PAD, (max(ys)-min(ys))+2*PAD]
@@ -177,6 +189,6 @@ for cl in CLASSES:
         'parent':cl.get('parent'),'subLabel':cl.get('subLabel'),
         'nodes':[{k:n[k] for k in ('s','x','y','shape','cat','n','t','d')} for n in cl['nodes']],
         'edges':cl['edges']})
-with open('data.json','w',encoding='utf-8') as f:
+with (BUILD / 'data.json').open('w',encoding='utf-8') as f:
     json.dump(out,f,ensure_ascii=False,separators=(',',':'))
-print('WROTE data.json size(MB):', round(os.path.getsize('data.json')/1e6,2))
+print('WROTE data.json size(MB):', round((BUILD / 'data.json').stat().st_size/1e6,2))
