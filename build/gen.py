@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 import json
-data = open('data.json',encoding='utf-8').read()
+import hashlib
+from pathlib import Path
+
+BUILD = Path(__file__).resolve().parent
+data = (BUILD / 'data.json').read_text(encoding='utf-8')
+obj = json.loads(data)
+scraped = obj['scraped_at']
+for tree in obj['classes']:
+    # Bitmask codes depend on node order; reject codes made for another layout.
+    node_order = json.dumps([n['s'] for n in tree['nodes']], separators=(',', ':'))
+    tree['codeVersion'] = hashlib.sha256(node_order.encode()).hexdigest()[:12]
+data = json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
 
 TEMPLATE = r"""<title>Darktide Skill Trees — All Classes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -140,7 +151,7 @@ TEMPLATE = r"""<title>Darktide Skill Trees — All Classes</title>
     <div class="row"><button class="act primary" id="copyCode">Copy code</button><span id="copyMsg" class="msg"></span></div>
     <hr>
     <label>Load a code</label>
-    <textarea id="codeIn" rows="2" spellcheck="false" placeholder="Paste a code beginning with DT1. …"></textarea>
+    <textarea id="codeIn" rows="2" spellcheck="false" placeholder="Paste a code beginning with DT2. …"></textarea>
     <div class="row"><button class="act primary" id="loadCode">Load build</button><span id="loadMsg" class="msg"></span></div>
     <button class="x" id="closeModal" title="Close">&times;</button>
   </div>
@@ -152,17 +163,11 @@ const APP_VERSION = '1.2.1';
 
 /* ===== named preset builds (loadable via the Preset dropdown) ===== */
 const PRESETS = {
-  zealot: [
-    { name: 'The Unbroken Choir — Beacon Medic (Chorus support)', code: 'DT1.zealot.iRpvKCoM4ClVAQI' },
-  ],
-  psyker: [
-    { name: 'Storm Anchor — Smite Warden (max Smite uptime)', code: 'DT1.psyker.G2SBmQESwIIg7WU' },
-    { name: 'Storm Bastion — Smite Warden (more survivability)', code: 'DT1.psyker.G2SBkQESwMIg7WU' },
-  ],
+  // Previous presets used removed talents. Add replacements after in-game validation.
 };
-const GAME_PATCH  = 'Darktide Hotfix 1.12.3 (2026-07-06)';
+const GAME_PATCH  = 'Games Lantern snapshot (__SCRAPED__)';
 const DATA_SOURCE = 'Games Lantern';
-const DATA_SCRAPED= '2026-07-26';
+const DATA_SCRAPED= '__SCRAPED__';
 
 const DATA = __DATA__;
 const GEAR_GUIDE = __GEAR__;
@@ -386,13 +391,13 @@ function exportPNG(){
 document.getElementById('exportBtn').onclick=exportPNG;
 
 /* ---------------- build code (share / import) ---------------- */
-// Format:  DT1.<classKey>.<base64url bitmask over that tree's node order>
+// Format: DT2.<classKey>.<node-order fingerprint>.<base64url bitmask>
 function b64urlFromBytes(bytes){let s='';bytes.forEach(b=>s+=String.fromCharCode(b));return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function bytesFromB64url(str){str=str.replace(/-/g,'+').replace(/_/g,'/');const bin=atob(str);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
 function encodeBuild(){
   const nodes=CUR.nodes, bytes=new Uint8Array(Math.ceil(nodes.length/8));
   nodes.forEach((n,i)=>{ if(active.has(n.s)) bytes[i>>3]|=(1<<(i&7)); });
-  return 'DT1.'+CUR.key+'.'+b64urlFromBytes(bytes);
+  return 'DT2.'+CUR.key+'.'+CUR.codeVersion+'.'+b64urlFromBytes(bytes);
 }
 // switch to a class or nested sub-tree by key, leaving active at just the root
 function openTree(classKey){
@@ -406,11 +411,14 @@ function openTree(classKey){
 }
 function applyBuildCode(code){
   const parts=(code||'').trim().split('.');
-  if(parts.length!==3 || parts[0]!=='DT1') throw new Error('Not a valid build code.');
+  if(parts[0]==='DT1') throw new Error('This code uses an older talent tree. Please recreate the build.');
+  if(parts.length!==4 || parts[0]!=='DT2') throw new Error('Not a valid build code.');
   const key=parts[1];
-  if(!DATA.classes.some(c=>c.key===key)) throw new Error('Unknown class in code: '+key);
+  const tree=DATA.classes.find(c=>c.key===key);
+  if(!tree) throw new Error('Unknown class in code: '+key);
+  if(parts[2]!==tree.codeVersion) throw new Error('This code uses a different talent tree. Please recreate the build.');
+  const bytes=bytesFromB64url(parts[3]);
   openTree(key);
-  const bytes=bytesFromB64url(parts[2]);
   const want=new Set([ROOT]);
   CUR.nodes.forEach((n,i)=>{ if(bytes[i>>3] & (1<<(i&7))) want.add(n.s); });
   // keep only nodes reachable from root through the selected set (safety against bad codes)
@@ -460,18 +468,15 @@ selectClass(DATA.classes.find(c=>!c.parent).key);
 </script>
 """
 
-import os
-OUT=r'C:/AI Bins/Code/Darktide'
-obj=json.loads(data)
+OUT = BUILD.parent
 
 def write(path,txt):
-    open(os.path.join(OUT,path),'w',encoding='utf-8').write(txt)
+    (OUT / path).write_text(txt, encoding='utf-8')
     print(f'  {path}: {round(len(txt.encode())/1e6,2)} MB')
 
 # 1) combined all-classes page
-import os.path as _p
-gear = open('gear.json',encoding='utf-8').read() if _p.exists('gear.json') else '{}'
-TEMPLATE = TEMPLATE.replace('__GEAR__', gear)
+gear = (BUILD / 'gear.json').read_text(encoding='utf-8') if (BUILD / 'gear.json').exists() else '{}'
+TEMPLATE = TEMPLATE.replace('__GEAR__', gear).replace('__SCRAPED__', scraped)
 write('darktide-skill-trees.html', TEMPLATE.replace('__DATA__', data))
 
 # 2) one lightweight page per class (only that class's nodes + icons)
@@ -530,8 +535,8 @@ INDEX=f'''<title>Darktide Tree Planner</title>
   <a class="allbtn" href="darktide-skill-trees.html">Open all classes in one page →</a>
   <div class="grid">
   {cards}</div>
-  <footer>Skill Tree Planner <b>v{'1.2.1'}</b> · Tree data based on <b>Darktide Hotfix 1.12.3 (2026-07-06)</b>.
-  Data via <a href="https://darktide.gameslantern.com">Games Lantern</a>, scraped 2026-07-26.<br>
+  <footer>Skill Tree Planner <b>v{'1.2.1'}</b> · Tree data from a <b>Games Lantern snapshot ({scraped})</b>.
+  Data via <a href="https://darktide.gameslantern.com">Games Lantern</a>, scraped {scraped}. Community source — wording may lag a patch.<br>
   Unofficial fan project — not affiliated with Games Workshop or Fatshark. Warhammer 40,000 &amp; Darktide © their respective owners.</footer>
 </div>
 '''
